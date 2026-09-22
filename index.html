@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Gerador de Currículos ATS — Padrão Corporativo Brasileiro</title>
+
+<!-- ===================== PWA — MANIFESTO E ÍCONES ===================== -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+<!-- Cor da barra de status / moldura do sistema (Android e navegadores) -->
+<meta name="theme-color" content="#0b1220">
+
+<!-- iOS: faz o app abrir em tela cheia, sem a barra do Safari, quando
+     adicionado à Tela de Início (Compartilhar → Adicionar à Tela de Início) -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Currículo ATS">
+
+<!-- Android / outros: mesmo comportamento de "modo app" -->
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tailwind.css">
+<script src="libs/html2canvas.min.js"></script>
+<script src="libs/jspdf.umd.min.js"></script>
+<script src="libs/docx.min.js"></script>
+<style>
+  * { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+  html, body { overflow-x: hidden; max-width: 100vw; overscroll-behavior: none; }
+  body { font-family: 'Inter', system-ui, sans-serif; background:#0b1220; color:#e2e8f0; }
+
+  /* ===================== PWA — ÁREAS SEGURAS (notch / barra do sistema) ===================== */
+  :root { box-sizing: border-box; }
+  header.app-header{ padding-top: calc(0.875rem + env(safe-area-inset-top, 0px)); }
+  #bottomNav{ padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)); }
+  body{ padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+  .no-scrollbar::-webkit-scrollbar{ display:none; }
+  .no-scrollbar{ -ms-overflow-style:none; scrollbar-width:none; }
+
+  /* ===================== A4 PAGE BASE ===================== */
+  .a4-page{
+    width:794px;
+    min-height:1123px;
+    background:#ffffff;
+    margin:0 auto;
+    box-shadow:0 4px 24px rgba(0,0,0,.18);
+    box-sizing:border-box;
+    color:#1f2937;
+    overflow:hidden;
+  }
+  .a4-page .section-block{ margin-bottom:14px; }
+  .a4-page .exp-item, .a4-page .edu-item-wrap, .a4-page .course-item-wrap{ margin-bottom:10px; }
+  .a4-page .bullets{ margin:4px 0 0 18px; padding:0; }
+  .a4-page .bullets li{ margin-bottom:2px; }
+  .a4-page .skill-tag{
+    display:inline-block; padding:3px 10px; border-radius:999px;
+    font-size:10.5px; margin:0 6px 6px 0; background:#eef2f7; color:#334155; border:1px solid #dde3ea;
+  }
+  .a4-page .exp-row{ display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:4px; }
+  .a4-page .exp-dates{ font-size:11px; color:#4b5563; white-space:nowrap; font-style:italic; }
+  .a4-page .empty-hint{ color:#9ca3af; font-style:italic; }
+
+  /* ===================== TEMPLATE 1 — Executivo Clássico ===================== */
+  .tpl-1{ font-family: Georgia, 'Times New Roman', Times, serif; padding:46px 54px; font-size:12px; line-height:1.5; }
+  .tpl-1 .header{ border-bottom:2px solid #1f2937; padding-bottom:12px; margin-bottom:16px; }
+  .tpl-1 .name{ font-size:25px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#111827; }
+  .tpl-1 .contact-line{ font-size:11px; color:#374151; margin-top:6px; }
+  .tpl-1 .section-title{ font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#111827; border-bottom:1px solid #9ca3af; padding-bottom:3px; margin:16px 0 8px; }
+  .tpl-1 .exp-role{ font-weight:700; }
+  .tpl-1 .exp-company{ font-style:italic; }
+
+  /* ===================== TEMPLATE 2 — Moderno Minimalista ===================== */
+  .tpl-2{ font-family:'Inter', Roboto, Arial, sans-serif; padding:0; font-size:11.5px; line-height:1.55; }
+  .tpl-2 .header{ background:#1e293b; color:#fff; padding:34px 44px 26px; }
+  .tpl-2 .body-content{ padding:26px 44px 40px; }
+  .tpl-2 .name{ font-size:27px; font-weight:800; letter-spacing:.2px; }
+  .tpl-2 .contact-line{ font-size:11px; color:#cbd5e1; margin-top:8px; }
+  .tpl-2 .section-title{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:#1e293b; margin:18px 0 8px; padding-bottom:4px; border-bottom:2px solid #e2e8f0; }
+  .tpl-2 .exp-role{ font-weight:700; color:#0f172a; }
+  .tpl-2 .exp-company{ color:#475569; }
+  .tpl-2 .skill-tag{ background:#e2e8f0; color:#1e293b; border:none; }
+
+  /* ===================== TEMPLATE 3 — Enxuto / Compacto ===================== */
+  .tpl-3{ font-family: Arial, Helvetica, sans-serif; padding:26px 32px; font-size:10px; line-height:1.32; }
+  .tpl-3 .header{ border-bottom:1.5px solid #111827; padding-bottom:8px; margin-bottom:10px; }
+  .tpl-3 .name{ font-size:18px; font-weight:700; }
+  .tpl-3 .contact-line{ font-size:9.5px; color:#374151; margin-top:3px; }
+  .tpl-3 .section-title{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; border-bottom:1px solid #ccc; margin:9px 0 5px; padding-bottom:2px; }
+  .tpl-3 .section-block{ margin-bottom:8px; }
+  .tpl-3 .exp-item, .tpl-3 .edu-item-wrap, .tpl-3 .course-item-wrap{ margin-bottom:6px; }
+  .tpl-3 .exp-role{ font-weight:700; }
+  .tpl-3 .exp-company{ font-style:italic; }
+  .tpl-3 .skill-tag{ font-size:9.5px; padding:2px 8px; margin:0 4px 4px 0; }
+  .tpl-3 .bullets{ margin:2px 0 0 15px; }
+
+  /* ===================== TEMPLATE 4 — Clean Elegante ===================== */
+  .tpl-4{ font-family:'Inter', Arial, sans-serif; padding:48px 56px; font-size:11.5px; line-height:1.6; }
+  .tpl-4 .header{ text-align:center; border-bottom:2px solid #0d9488; padding-bottom:18px; margin-bottom:18px; }
+  .tpl-4 .name{ font-size:27px; font-weight:800; color:#0d9488; letter-spacing:.4px; }
+  .tpl-4 .contact-line{ font-size:11px; color:#4b5563; margin-top:8px; }
+  .tpl-4 .section-title{ font-size:13px; font-weight:700; color:#0d9488; letter-spacing:.6px; margin:18px 0 9px; text-transform:uppercase; }
+  .tpl-4 .exp-role{ font-weight:700; color:#111827; }
+  .tpl-4 .exp-company{ color:#0d9488; font-weight:600; }
+  .tpl-4 .skill-tag{ background:#f0fdfa; color:#0d9488; border:1px solid #99f6e4; }
+
+  /* Step form fade */
+  .step-panel{ animation: fadein .18s ease; }
+  @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+
+  .tab-btn.active{ background:linear-gradient(135deg,#2563eb,#0ea5e9); color:#fff; border-color:transparent; }
+  .tpl-btn.active{ outline:2px solid #3b82f6; outline-offset:2px; background:#1e293b !important; color:#93c5fd !important; border-color:#3b82f6 !important; }
+</style>
+</head>
+<body class="min-h-screen pb-24">
+
+<!-- ===================== TELA DE BOAS-VINDAS (currículo salvo) ===================== -->
+<div id="welcomeScreen" class="hidden fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-6">
+  <div class="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl shadow-black/50 text-center">
+    <div class="text-4xl mb-3">👋</div>
+    <h2 class="text-lg font-bold text-slate-100 mb-1">Bem-vindo de volta!</h2>
+    <p id="welcomeSubtitle" class="text-sm text-slate-400 mb-6">Encontramos um currículo salvo neste navegador.</p>
+
+    <button onclick="continueSavedResume('preview')" class="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg py-3 text-sm font-semibold shadow-lg shadow-blue-950/40 mb-2.5 active:scale-[0.98] transition">
+      🖨️ Entrar e exportar o mesmo currículo
+    </button>
+    <button onclick="continueSavedResume('edit')" class="w-full border border-slate-700 bg-slate-800 text-slate-200 rounded-lg py-3 text-sm font-medium mb-4 active:scale-[0.98] transition">
+      ✏️ Continuar editando
+    </button>
+    <button onclick="startNewResume()" class="w-full text-red-400 text-xs font-medium py-1">
+      🗑️ Começar um currículo novo (apaga o salvo)
+    </button>
+  </div>
+</div>
+
+<!-- ===================== TOP BAR ===================== -->
+<header class="app-header sticky top-0 z-30 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3.5 shadow-lg shadow-black/20 flex items-center justify-between gap-3">
+  <div class="min-w-0">
+    <h1 class="text-base font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent flex items-center gap-2">📄 Gerador de Currículo ATS</h1>
+    <p class="text-[11px] text-slate-400 mt-0.5">Padrão corporativo brasileiro — 100% no navegador</p>
+  </div>
+  <button onclick="confirmNewResume()" class="shrink-0 text-[11px] text-slate-400 border border-slate-700 rounded-full px-2.5 py-1.5 hover:text-red-400 hover:border-red-500/50 transition">🗑️ Novo</button>
+</header>
+
+<!-- ===================== PWA — BANNER DE INSTALAÇÃO ===================== -->
+<div id="installBanner" class="hidden px-4 py-2.5 bg-blue-600/15 border-b border-blue-500/25 flex items-center justify-between gap-3">
+  <p class="text-[11px] text-blue-200 leading-snug">📲 Instale este app na sua tela inicial — abre igual um app nativo, sem navegador.</p>
+  <div class="flex items-center gap-2 shrink-0">
+    <button onclick="installApp()" class="text-[11px] font-semibold bg-blue-600 text-white rounded-full px-3 py-1.5">Instalar</button>
+    <button onclick="dismissInstallBanner()" class="text-slate-400 text-sm px-1" aria-label="Fechar">✕</button>
+  </div>
+</div>
+
+<!-- ===================== STEP TABS ===================== -->
+<nav id="stepTabsNav" class="app-nav sticky z-20 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-2 py-2 overflow-x-auto no-scrollbar" style="top:65px;">
+  <div class="flex gap-2 min-w-max">
+    <button class="tab-btn px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700 transition-colors" data-step="1" onclick="showStep(1)">1. Dados Pessoais</button>
+    <button class="tab-btn px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700 transition-colors" data-step="2" onclick="showStep(2)">2. Objetivo</button>
+    <button class="tab-btn px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700 transition-colors" data-step="3" onclick="showStep(3)">3. Experiências</button>
+    <button class="tab-btn px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700 transition-colors" data-step="4" onclick="showStep(4)">4. Formação</button>
+    <button class="tab-btn px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700 transition-colors" data-step="5" onclick="showStep(5)">👁️ Pré-visualizar</button>
+  </div>
+</nav>
+
+<main class="px-4 py-4 max-w-2xl mx-auto">
+
+  <!-- ===================== STEP 1: DADOS PESSOAIS ===================== -->
+  <section id="step1" class="step-panel space-y-3">
+    <h2 class="font-semibold text-slate-100 text-sm mb-1">Dados Pessoais &amp; Contato</h2>
+    <p class="text-[11px] text-slate-400 mb-2">Sem foto, CPF/RG ou endereço completo — apenas o essencial para o RH e sistemas ATS.</p>
+
+    <input id="f_name" type="text" placeholder="Nome completo" class="w-full border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" oninput="updatePersonal('name', this.value)">
+    <input id="f_city" type="text" placeholder="Cidade / UF (ex: São Paulo/SP)" class="w-full border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" oninput="updatePersonal('city', this.value)">
+    <input id="f_phone" type="text" placeholder="Telefone com DDD (ex: (11) 91234-5678)" class="w-full border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" oninput="updatePersonal('phone', this.value)">
+    <label class="flex items-center gap-2 text-xs text-slate-400 pl-1">
+      <input id="f_whatsapp" type="checkbox" checked onchange="updatePersonal('whatsapp', this.checked)"> Este número também é WhatsApp
+    </label>
+    <input id="f_email" type="email" placeholder="E-mail profissional" class="w-full border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" oninput="updatePersonal('email', this.value)">
+    <input id="f_linkedin" type="text" placeholder="linkedin.com/in/seu-perfil" class="w-full border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" oninput="updatePersonal('linkedin', this.value)">
+  </section>
+
+  <!-- ===================== STEP 2: OBJETIVO & RESUMO ===================== -->
+  <section id="step2" class="step-panel space-y-3 hidden">
+    <h2 class="font-semibold text-slate-100 text-sm mb-1">Objetivo &amp; Resumo Profissional</h2>
+
+    <label class="block text-xs font-medium text-slate-300 mb-1">Objetivo Profissional (1 linha)</label>
+    <input id="f_objective" type="text" maxlength="90" placeholder="Ex: Cargo: Analista Financeiro Pleno" class="w-full border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" oninput="updateField('objective', this.value)">
+
+    <label class="block text-xs font-medium text-slate-300 mb-1 mt-2">Resumo Profissional (até 400 caracteres)</label>
+    <textarea id="f_summary" maxlength="400" rows="5" placeholder="Sintetize sua trajetória, principais conquistas e perfil profissional." class="w-full border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" oninput="updateSummary(this.value)"></textarea>
+    <p class="text-[11px] text-right text-slate-500"><span id="summaryCount">0</span>/400</p>
+  </section>
+
+  <!-- ===================== STEP 3: EXPERIÊNCIAS ===================== -->
+  <section id="step3" class="step-panel hidden">
+    <h2 class="font-semibold text-slate-100 text-sm mb-3">Experiências Profissionais</h2>
+    <div id="experienceList" class="space-y-3"></div>
+  </section>
+
+  <!-- ===================== STEP 4: FORMAÇÃO / CURSOS / SKILLS ===================== -->
+  <section id="step4" class="step-panel hidden space-y-6">
+    <div>
+      <h2 class="font-semibold text-slate-100 text-sm mb-3">Formação Acadêmica</h2>
+      <div id="educationList" class="space-y-3"></div>
+    </div>
+    <div>
+      <h2 class="font-semibold text-slate-100 text-sm mb-3">Cursos &amp; Certificações</h2>
+      <div id="coursesList" class="space-y-3"></div>
+    </div>
+    <div>
+      <h2 class="font-semibold text-slate-100 text-sm mb-2">Habilidades &amp; Ferramentas</h2>
+      <p class="text-[11px] text-slate-400 mb-2">Separe por vírgulas.</p>
+      <textarea id="f_skills" rows="3" placeholder="Ex: Excel Avançado, SAP, Power BI, Gestão de Equipes" class="w-full border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" oninput="updateField('skills', this.value)"></textarea>
+    </div>
+  </section>
+
+  <!-- ===================== STEP 5: PREVIEW ===================== -->
+  <section id="step5" class="step-panel hidden">
+    <h2 class="font-semibold text-slate-100 text-sm mb-2">Escolha o modelo</h2>
+    <div class="grid grid-cols-4 gap-2 mb-4">
+      <button class="tpl-btn active rounded-lg border border-slate-700 bg-slate-800 py-2 text-[10px] font-medium text-slate-300 transition-colors" data-tpl="1" onclick="setTemplate(1)">Executivo<br>Clássico</button>
+      <button class="tpl-btn rounded-lg border border-slate-700 bg-slate-800 py-2 text-[10px] font-medium text-slate-300 transition-colors" data-tpl="2" onclick="setTemplate(2)">Moderno<br>Minimalista</button>
+      <button class="tpl-btn rounded-lg border border-slate-700 bg-slate-800 py-2 text-[10px] font-medium text-slate-300 transition-colors" data-tpl="3" onclick="setTemplate(3)">Enxuto<br>Compacto</button>
+      <button class="tpl-btn rounded-lg border border-slate-700 bg-slate-800 py-2 text-[10px] font-medium text-slate-300 transition-colors" data-tpl="4" onclick="setTemplate(4)">Clean<br>Elegante</button>
+    </div>
+
+    <div class="flex gap-2 mb-4">
+      <button onclick="exportPDF(event)" class="flex-1 bg-gradient-to-br from-rose-600 to-red-600 text-white rounded-lg py-3 text-sm font-semibold shadow-lg shadow-red-950/40 active:scale-[0.98] transition">⬇️ Exportar PDF</button>
+      <button onclick="exportDOCX()" class="flex-1 bg-gradient-to-br from-blue-600 to-cyan-500 text-white rounded-lg py-3 text-sm font-semibold shadow-lg shadow-blue-950/40 active:scale-[0.98] transition">⬇️ Exportar Word</button>
+    </div>
+    <p class="text-[10px] text-slate-500 text-center mb-4">💾 Seus dados ficam salvos automaticamente neste navegador</p>
+
+    <div id="previewWrapper" class="w-full overflow-hidden rounded-lg bg-slate-900 border border-slate-800 py-4 flex justify-center">
+      <div id="scaleContainer" style="transform-origin: top center;">
+        <div id="a4page" class="a4-page tpl-1"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===================== BOTTOM STEP NAV ===================== -->
+<div id="bottomNav" class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur border-t border-slate-800 px-4 py-3 flex gap-3 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
+  <button id="btnPrev" onclick="prevStep()" class="flex-1 border border-slate-700 bg-slate-800 rounded-lg py-2.5 text-sm font-medium text-slate-300">← Anterior</button>
+  <button id="btnNext" onclick="nextStep()" class="flex-1 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg py-2.5 text-sm font-medium shadow-lg shadow-blue-950/30">Próximo →</button>
+</div>
+
+<script>
+/* ============================================================
+   ESTADO DA APLICAÇÃO
+   ============================================================ */
+let state = {
+  template: 1,
+  personal: { name:'', city:'', phone:'', whatsapp:true, email:'', linkedin:'' },
+  objective: '',
+  summary: '',
+  experiences: [ blankExperience() ],
+  education: [ blankEducation() ],
+  courses: [ blankCourse() ],
+  skills: ''
+};
+
+function blankExperience(){ return { company:'', role:'', start:'', end:'', current:false, bullets:'' }; }
+function blankEducation(){ return { level:'Graduação', course:'', institution:'', year:'' }; }
+function blankCourse(){ return { name:'', institution:'', hours:'' }; }
+
+function escapeHtml(str){
+  if(!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+/* ============================================================
+   SALVAMENTO NO NAVEGADOR (localStorage)
+   ============================================================ */
+const STORAGE_KEY = 'curriculo_ats_v1';
+
+function saveState(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){
+    // Navegador em modo privado, storage cheio, ou bloqueado — ignora silenciosamente,
+    // a aplicação continua funcionando normalmente, só sem persistência.
+  }
+}
+
+function loadSavedState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){
+    return null;
+  }
+}
+
+function hasContent(s){
+  if(!s) return false;
+  const hasPersonal = !!(s.personal && (s.personal.name || s.personal.email || s.personal.phone));
+  const hasExp = !!(s.experiences && s.experiences.some(e => e && (e.company || e.role)));
+  return hasPersonal || hasExp || !!s.objective || !!s.summary;
+}
+
+function applyLoadedState(saved){
+  state = Object.assign({
+    template: 1,
+    personal: { name:'', city:'', phone:'', whatsapp:true, email:'', linkedin:'' },
+    objective: '',
+    summary: '',
+    experiences: [ blankExperience() ],
+    education: [ blankEducation() ],
+    courses: [ blankCourse() ],
+    skills: ''
+  }, saved || {});
+
+  if(!state.experiences || !state.experiences.length) state.experiences = [ blankExperience() ];
+  if(!state.education || !state.education.length) state.education = [ blankEducation() ];
+  if(!state.courses || !state.courses.length) state.courses = [ blankCourse() ];
+
+  // Repopula os campos estáticos dos passos 1 e 2
+  document.getElementById('f_name').value = state.personal.name || '';
+  document.getElementById('f_city').value = state.personal.city || '';
+  document.getElementById('f_phone').value = state.personal.phone || '';
+  document.getElementById('f_whatsapp').checked = !!state.personal.whatsapp;
+  document.getElementById('f_email').value = state.personal.email || '';
+  document.getElementById('f_linkedin').value = state.personal.linkedin || '';
+  document.getElementById('f_objective').value = state.objective || '';
+  document.getElementById('f_summary').value = state.summary || '';
+  document.getElementById('summaryCount').textContent = (state.summary || '').length;
+  document.getElementById('f_skills').value = state.skills || '';
+
+  document.querySelectorAll('.tpl-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.tpl) === state.template));
+
+  renderExperienceForm();
+  renderEducationForm();
+  renderCoursesForm();
+  renderPreview();
+}
+
+function continueSavedResume(mode){
+  const saved = loadSavedState();
+  applyLoadedState(saved);
+  document.getElementById('welcomeScreen').classList.add('hidden');
+  showStep(mode === 'preview' ? 5 : 1);
+}
+
+function startNewResume(){
+  if(!confirm('Isso vai apagar o currículo salvo neste navegador e começar do zero. Deseja continuar?')) return;
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+  applyLoadedState({});
+  document.getElementById('welcomeScreen').classList.add('hidden');
+  showStep(1);
+}
+
+function confirmNewResume(){
+  if(!confirm('Deseja começar um currículo novo? Os dados salvos neste navegador serão apagados.')) return;
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+  applyLoadedState({});
+  showStep(1);
+}
+
+/* ============================================================
+   NAVEGAÇÃO ENTRE PASSOS
+   ============================================================ */
+let currentStep = 1;
+function showStep(n){
+  currentStep = n;
+  for(let i=1;i<=5;i++){
+    document.getElementById('step'+i).classList.toggle('hidden', i!==n);
+  }
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.classList.toggle('active', parseInt(btn.dataset.step)===n);
+  });
+  document.getElementById('bottomNav').classList.toggle('hidden', n===5);
+  document.getElementById('btnPrev').style.visibility = n===1 ? 'hidden' : 'visible';
+  document.getElementById('btnNext').textContent = n===4 ? 'Ver Pré-visualização →' : 'Próximo →';
+  if(n===5){ renderPreview(); requestAnimationFrame(fitScale); }
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+function nextStep(){ if(currentStep<5) showStep(currentStep+1); }
+function prevStep(){ if(currentStep>1) showStep(currentStep-1); }
+
+/* ============================================================
+   ATUALIZAÇÃO DE CAMPOS SIMPLES
+   ============================================================ */
+function updatePersonal(field, value){ state.personal[field] = value; renderPreview(); }
+function updateField(field, value){ state[field] = value; renderPreview(); }
+function updateSummary(value){
+  state.summary = value;
+  document.getElementById('summaryCount').textContent = value.length;
+  renderPreview();
+}
+
+/* ============================================================
+   EXPERIÊNCIAS (dinâmico)
+   ============================================================ */
+function renderExperienceForm(){
+  const c = document.getElementById('experienceList');
+  c.innerHTML = state.experiences.map((exp,i)=>`
+    <div class="bg-slate-800 rounded-lg shadow-sm border border-slate-700 p-4">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="text-xs font-semibold text-blue-400/80 uppercase tracking-wide">Experiência ${i+1}</h3>
+        ${state.experiences.length>1?`<button type="button" onclick="removeExperience(${i})" class="text-red-400 text-xs font-medium">Remover</button>`:''}
+      </div>
+      <input type="text" placeholder="Empresa" value="${escapeHtml(exp.company)}" oninput="updateExp(${i},'company',this.value)" class="w-full border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-lg p-2.5 mb-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+      <input type="text" placeholder="Cargo" value="${escapeHtml(exp.role)}" oninput="updateExp(${i},'role',this.value)" class="w-full border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-lg p-2.5 mb-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+      <div class="grid grid-cols-2 gap-2 mb-2">
+        <input type="text" placeholder="Início (mm/aaaa)" value="${escapeHtml(exp.start)}" oninput="updateExp(${i},'start',this.value)" class="border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        <input type="text" placeholder="Término" value="${escapeHtml(exp.end)}" ${exp.current?'disabled':''} oninput="updateExp(${i},'end',this.value)" class="border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${exp.current?'bg-slate-800/60 text-slate-600':''}">
+      </div>
+      <label class="flex items-center gap-2 text-xs text-slate-400 mb-2 pl-1">
+        <input type="checkbox" ${exp.current?'checked':''} onchange="updateExp(${i},'current',this.checked); renderExperienceForm();"> Emprego atual
+      </label>
+      <textarea placeholder="Responsabilidades e conquistas (uma por linha)" oninput="updateExp(${i},'bullets',this.value)" class="w-full border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-lg p-2.5 text-sm h-24 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">${escapeHtml(exp.bullets)}</textarea>
+    </div>
+  `).join('') + `<button type="button" onclick="addExperience()" class="w-full py-3 border-2 border-dashed border-blue-500/50 text-blue-400 rounded-lg text-sm font-medium hover:bg-slate-800/60 transition">+ Adicionar Experiência</button>`;
+}
+function addExperience(){ state.experiences.push(blankExperience()); renderExperienceForm(); renderPreview(); }
+function removeExperience(i){ state.experiences.splice(i,1); renderExperienceForm(); renderPreview(); }
+function updateExp(i, field, value){ state.experiences[i][field] = value; if(field==='current' && value) state.experiences[i].end=''; renderPreview(); }
+
+/* ============================================================
+   FORMAÇÃO ACADÊMICA (dinâmico)
+   ============================================================ */
+function renderEducationForm(){
+  const c = document.getElementById('educationList');
+  c.innerHTML = state.education.map((edu,i)=>`
+    <div class="bg-slate-800 rounded-lg shadow-sm border border-slate-700 p-4">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="text-xs font-semibold text-blue-400/80 uppercase tracking-wide">Formação ${i+1}</h3>
+        ${state.education.length>1?`<button type="button" onclick="removeEducation(${i})" class="text-red-400 text-xs font-medium">Remover</button>`:''}
+      </div>
+      <select onchange="updateEdu(${i},'level',this.value)" class="w-full border border-slate-700 bg-slate-900 text-slate-100 rounded-lg p-2.5 mb-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        ${['Ensino Fundamental','Ensino Médio','Técnico','Graduação','Pós-graduação','MBA','Mestrado','Doutorado'].map(l=>`<option ${edu.level===l?'selected':''}>${l}</option>`).join('')}
+      </select>
+      <input type="text" placeholder="Curso (deixe em branco se não houver, ex: Ensino Médio)" value="${escapeHtml(edu.course)}" oninput="updateEdu(${i},'course',this.value)" class="w-full border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-lg p-2.5 mb-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+      <input type="text" placeholder="Instituição" value="${escapeHtml(edu.institution)}" oninput="updateEdu(${i},'institution',this.value)" class="w-full border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-lg p-2.5 mb-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+      <input type="text" placeholder="Ano de conclusão (ou previsão)" value="${escapeHtml(edu.year)}" oninput="updateEdu(${i},'year',this.value)" class="w-full border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+    </div>
+  `).join('') + `<button type="button" onclick="addEducation()" class="w-full py-3 border-2 border-dashed border-blue-500/50 text-blue-400 rounded-lg text-sm font-medium hover:bg-slate-800/60 transition">+ Adicionar Formação</button>`;
+}
+function addEducation(){ state.education.push(blankEducation()); renderEducationForm(); renderPreview(); }
+function removeEducation(i){ state.education.splice(i,1); renderEducationForm(); renderPreview(); }
+function updateEdu(i, field, value){ state.education[i][field] = value; renderPreview(); }
+
+/* ============================================================
+   CURSOS E CERTIFICAÇÕES (dinâmico)
+   ============================================================ */
+function renderCoursesForm(){
+  const c = document.getElementById('coursesList');
+  c.innerHTML = state.courses.map((cu,i)=>`
+    <div class="bg-slate-800 rounded-lg shadow-sm border border-slate-700 p-4">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="text-xs font-semibold text-blue-400/80 uppercase tracking-wide">Curso ${i+1}</h3>
+        ${state.courses.length>1?`<button type="button" onclick="removeCourse(${i})" class="text-red-400 text-xs font-medium">Remover</button>`:''}
+      </div>
+      <input type="text" placeholder="Nome do curso" value="${escapeHtml(cu.name)}" oninput="updateCourse(${i},'name',this.value)" class="w-full border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-lg p-2.5 mb-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+      <input type="text" placeholder="Instituição" value="${escapeHtml(cu.institution)}" oninput="updateCourse(${i},'institution',this.value)" class="w-full border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-lg p-2.5 mb-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+      <input type="text" placeholder="Carga horária (ex: 40h)" value="${escapeHtml(cu.hours)}" oninput="updateCourse(${i},'hours',this.value)" class="w-full border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+    </div>
+  `).join('') + `<button type="button" onclick="addCourse()" class="w-full py-3 border-2 border-dashed border-blue-500/50 text-blue-400 rounded-lg text-sm font-medium hover:bg-slate-800/60 transition">+ Adicionar Curso</button>`;
+}
+function addCourse(){ state.courses.push(blankCourse()); renderCoursesForm(); renderPreview(); }
+function removeCourse(i){ state.courses.splice(i,1); renderCoursesForm(); renderPreview(); }
+function updateCourse(i, field, value){ state.courses[i][field] = value; renderPreview(); }
+
+/* ============================================================
+   TEMPLATE SELECTOR
+   ============================================================ */
+function setTemplate(n){
+  state.template = n;
+  document.querySelectorAll('.tpl-btn').forEach(b=>b.classList.toggle('active', parseInt(b.dataset.tpl)===n));
+  renderPreview();
+}
+
+/* ============================================================
+   RENDER DA PRÉ-VISUALIZAÇÃO (A4)
+   ============================================================ */
+function renderPreview(){
+  const page = document.getElementById('a4page');
+  page.className = 'a4-page tpl-' + state.template;
+
+  const p = state.personal;
+  const contactParts = [];
+  if(p.city) contactParts.push(escapeHtml(p.city));
+  if(p.phone) contactParts.push(escapeHtml(p.phone) + (p.whatsapp ? ' (WhatsApp)' : ''));
+  if(p.email) contactParts.push(escapeHtml(p.email));
+  if(p.linkedin) contactParts.push(escapeHtml(p.linkedin));
+
+  const headerHtml = `
+    <div class="header">
+      <div class="name">${escapeHtml(p.name) || 'Seu Nome Completo'}</div>
+      <div class="contact-line">${contactParts.length ? contactParts.join('&nbsp;&nbsp;•&nbsp;&nbsp;') : '<span class="empty-hint">Preencha seus dados de contato</span>'}</div>
+    </div>
+  `;
+
+  let bodyHtml = '';
+
+  if(state.objective){
+    bodyHtml += `<div class="section-block"><div class="section-title">Objetivo Profissional</div><div>${escapeHtml(state.objective)}</div></div>`;
+  }
+  if(state.summary){
+    bodyHtml += `<div class="section-block"><div class="section-title">Resumo Profissional</div><div>${escapeHtml(state.summary)}</div></div>`;
+  }
+
+  const validExp = state.experiences.filter(e=>e.company||e.role);
+  if(validExp.length){
+    bodyHtml += `<div class="section-block"><div class="section-title">Experiência Profissional</div>`;
+    validExp.forEach(exp=>{
+      const dates = [exp.start, exp.current ? 'Atual' : exp.end].filter(Boolean).join(' – ');
+      const bullets = (exp.bullets||'').split('\n').map(b=>b.trim()).filter(Boolean);
+      bodyHtml += `
+        <div class="exp-item">
+          <div class="exp-row">
+            <div><span class="exp-role">${escapeHtml(exp.role)}</span>${exp.company?' — <span class="exp-company">'+escapeHtml(exp.company)+'</span>':''}</div>
+            ${dates?`<div class="exp-dates">${escapeHtml(dates)}</div>`:''}
+          </div>
+          ${bullets.length?`<ul class="bullets">${bullets.map(b=>`<li>${escapeHtml(b)}</li>`).join('')}</ul>`:''}
+        </div>`;
+    });
+    bodyHtml += `</div>`;
+  }
+
+  const validEdu = state.education.filter(e=>e.course||e.institution);
+  if(validEdu.length){
+    bodyHtml += `<div class="section-block"><div class="section-title">Formação Acadêmica</div>`;
+    validEdu.forEach(edu=>{
+      const eduTitle = edu.course ? edu.course : edu.level;
+      const eduRest = [edu.course ? edu.level : '', edu.institution].filter(Boolean).join(', ');
+      bodyHtml += `<div class="edu-item-wrap"><strong>${escapeHtml(eduTitle)}</strong>${eduRest?' — '+escapeHtml(eduRest):''}${edu.year?' ('+escapeHtml(edu.year)+')':''}</div>`;
+    });
+    bodyHtml += `</div>`;
+  }
+
+  const validCourses = state.courses.filter(c=>c.name||c.institution);
+  if(validCourses.length){
+    bodyHtml += `<div class="section-block"><div class="section-title">Cursos &amp; Certificações</div>`;
+    validCourses.forEach(cu=>{
+      bodyHtml += `<div class="course-item-wrap">${escapeHtml(cu.name)}${cu.institution?' — '+escapeHtml(cu.institution):''}${cu.hours?' ('+escapeHtml(cu.hours)+')':''}</div>`;
+    });
+    bodyHtml += `</div>`;
+  }
+
+  if(state.skills){
+    const skills = state.skills.split(',').map(s=>s.trim()).filter(Boolean);
+    if(skills.length){
+      bodyHtml += `<div class="section-block"><div class="section-title">Habilidades &amp; Ferramentas</div><div>${skills.map(s=>`<span class="skill-tag">${escapeHtml(s)}</span>`).join('')}</div></div>`;
+    }
+  }
+
+  if(state.template===2){
+    page.innerHTML = headerHtml + `<div class="body-content">${bodyHtml}</div>`;
+  } else {
+    page.innerHTML = headerHtml + bodyHtml;
+  }
+
+  saveState();
+}
+
+/* ============================================================
+   ESCALA RESPONSIVA DA PÁGINA A4 (apenas visual)
+   ============================================================ */
+function fitScale(){
+  const wrapper = document.getElementById('previewWrapper');
+  const container = document.getElementById('scaleContainer');
+  const page = document.getElementById('a4page');
+  if(!wrapper || !page) return;
+  const availableWidth = wrapper.clientWidth - 24;
+  const scale = Math.min(1, availableWidth / 794);
+  const pageHeight = page.offsetHeight || 1123;
+  // Só a APARÊNCIA encolhe (transform). A caixa do container continua com o
+  // tamanho real (794px) e fica centralizada pelo flex do wrapper — encolher
+  // também a caixa, além da aparência, é o que causava o corte/deslocamento.
+  container.style.transform = `scale(${scale})`;
+  wrapper.style.height = (pageHeight * scale + 32) + 'px';
+}
+window.addEventListener('resize', fitScale);
+window.addEventListener('orientationchange', ()=>setTimeout(fitScale,200));
+
+/* ============================================================
+   EXPORTAÇÃO PDF
+   ============================================================ */
+async function exportPDF(evt){
+  // Verifica se as bibliotecas carregaram (falha comum se a internet do usuário bloquear a CDN)
+  if(typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
+    alert('Não foi possível carregar o gerador de PDF. Verifique sua conexão com a internet e tente novamente.');
+    return;
+  }
+
+  const btn = evt ? evt.currentTarget : null;
+  const originalLabel = btn ? btn.textContent : null;
+  if(btn){ btn.textContent = 'Gerando PDF...'; btn.disabled = true; }
+
+  const el = document.getElementById('a4page');
+  const container = document.getElementById('scaleContainer');
+  const filename = (state.personal.name || 'curriculo').trim().replace(/\s+/g,'_') + '_Curriculo.pdf';
+
+  // A folha fica visualmente "encolhida" (CSS transform: scale) pra caber na tela do
+  // celular. Isso confunde a captura da imagem (texto fica duplicado/fantasma).
+  // Por isso desligamos o encolhimento visual só durante a captura, e religamos depois.
+  const prevTransform = container.style.transform;
+  container.style.transform = 'none';
+
+  try{
+    // Captura a folha em alta resolução, sempre a partir do tamanho real (794px = A4),
+    // independente de como ela está sendo exibida (encolhida) na tela do celular.
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      windowWidth: 794,
+      width: 794
+    });
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const pageWidthMM = pdf.internal.pageSize.getWidth();   // 210
+    const pageHeightMM = pdf.internal.pageSize.getHeight(); // 297
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.98);
+    const imgWidthMM = pageWidthMM;
+    const imgHeightMM = (canvas.height * imgWidthMM) / canvas.width;
+
+    // Se o conteúdo cabe em 1 página (com folga mínima de 1mm pra evitar
+    // o bug clássico de arredondamento que cria uma 2ª página quase em branco),
+    // coloca tudo numa página só. Só quebra em mais páginas se realmente for mais longo.
+    if(imgHeightMM <= pageHeightMM + 1){
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidthMM, Math.min(imgHeightMM, pageHeightMM));
+    } else {
+      let heightLeftMM = imgHeightMM;
+      let positionMM = 0;
+      let isFirstPage = true;
+      while(heightLeftMM > 0){
+        if(!isFirstPage) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, positionMM, imgWidthMM, imgHeightMM);
+        heightLeftMM -= pageHeightMM;
+        positionMM -= pageHeightMM;
+        isFirstPage = false;
+      }
+    }
+
+    const blob = pdf.output('blob');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }catch(err){
+    console.error('Erro ao gerar PDF:', err);
+    alert('Não foi possível gerar o PDF. Tente novamente. Se o problema persistir, use a exportação em Word.');
+  }finally{
+    // Religa o encolhimento visual da folha pra caber na tela do celular de novo.
+    container.style.transform = prevTransform;
+    fitScale();
+    if(btn){ btn.textContent = originalLabel; btn.disabled = false; }
+  }
+}
+
+/* ============================================================
+   EXPORTAÇÃO DOCX
+   ============================================================ */
+async function exportDOCX(){
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = window.docx;
+  const p = state.personal;
+  const children = [];
+
+  children.push(new Paragraph({
+    alignment: AlignmentType.LEFT,
+    children: [ new TextRun({ text: p.name || 'Seu Nome Completo', bold:true, size:36 }) ]
+  }));
+
+  const contactParts = [];
+  if(p.city) contactParts.push(p.city);
+  if(p.phone) contactParts.push(p.phone + (p.whatsapp ? ' (WhatsApp)' : ''));
+  if(p.email) contactParts.push(p.email);
+  if(p.linkedin) contactParts.push(p.linkedin);
+  if(contactParts.length){
+    children.push(new Paragraph({ text: contactParts.join('  |  '), spacing:{ after:240 } }));
+  }
+
+  function sectionTitle(text){
+    children.push(new Paragraph({
+      spacing:{ before:200, after:100 },
+      children:[ new TextRun({ text: text.toUpperCase(), bold:true, size:24 }) ]
+    }));
+  }
+
+  if(state.objective){
+    sectionTitle('Objetivo Profissional');
+    children.push(new Paragraph({ text: state.objective, spacing:{ after:120 } }));
+  }
+  if(state.summary){
+    sectionTitle('Resumo Profissional');
+    children.push(new Paragraph({ text: state.summary, spacing:{ after:120 } }));
+  }
+
+  const validExp = state.experiences.filter(e=>e.company||e.role);
+  if(validExp.length){
+    sectionTitle('Experiência Profissional');
+    validExp.forEach(exp=>{
+      const dates = [exp.start, exp.current ? 'Atual' : exp.end].filter(Boolean).join(' – ');
+      children.push(new Paragraph({
+        children:[
+          new TextRun({ text: exp.role || '', bold:true }),
+          new TextRun({ text: exp.company ? '  —  ' + exp.company : '' }),
+          new TextRun({ text: dates ? '   (' + dates + ')' : '', italics:true })
+        ],
+        spacing:{ before:80 }
+      }));
+      (exp.bullets||'').split('\n').map(b=>b.trim()).filter(Boolean).forEach(b=>{
+        children.push(new Paragraph({ text: b, bullet:{ level:0 } }));
+      });
+    });
+  }
+
+  const validEdu = state.education.filter(e=>e.course||e.institution);
+  if(validEdu.length){
+    sectionTitle('Formação Acadêmica');
+    validEdu.forEach(edu=>{
+      const line = [edu.course || edu.level, edu.course ? edu.level : '', edu.institution, edu.year ? '(' + edu.year + ')' : ''].filter(Boolean).join(' — ');
+      children.push(new Paragraph({ text: line }));
+    });
+  }
+
+  const validCourses = state.courses.filter(c=>c.name||c.institution);
+  if(validCourses.length){
+    sectionTitle('Cursos & Certificações');
+    validCourses.forEach(cu=>{
+      const line = [cu.name, cu.institution, cu.hours ? '(' + cu.hours + ')' : ''].filter(Boolean).join(' — ');
+      children.push(new Paragraph({ text: line }));
+    });
+  }
+
+  if(state.skills){
+    sectionTitle('Habilidades & Ferramentas');
+    children.push(new Paragraph({ text: state.skills }));
+  }
+
+  const doc = new Document({ sections: [{ properties:{}, children }] });
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (p.name || 'curriculo').trim().replace(/\s+/g,'_') + '_Curriculo.docx';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* ============================================================
+   PWA — AJUSTE DINÂMICO DA BARRA DE ABAS (evita sobreposição em
+   telas com notch/ilha dinâmica, onde o cabeçalho fica mais alto)
+   ============================================================ */
+function updateStickyOffsets(){
+  const header = document.querySelector('header.app-header');
+  const nav = document.getElementById('stepTabsNav');
+  if(header && nav){
+    nav.style.top = header.offsetHeight + 'px';
+  }
+}
+updateStickyOffsets();
+window.addEventListener('load', updateStickyOffsets);
+window.addEventListener('resize', updateStickyOffsets);
+window.addEventListener('orientationchange', () => setTimeout(updateStickyOffsets, 200));
+
+/* ============================================================
+   PWA — REGISTRO DO SERVICE WORKER (funcionamento offline)
+   ============================================================ */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js')
+      .catch(err => console.error('Falha ao registrar o Service Worker:', err));
+  });
+}
+
+/* ============================================================
+   PWA — BANNER "INSTALAR APP"
+   ============================================================ */
+let deferredInstallPrompt = null;
+
+function isRunningAsInstalledApp(){
+  return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true; // iOS
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if(!isRunningAsInstalledApp() && !localStorage.getItem('install_banner_dismissed')){
+    document.getElementById('installBanner').classList.remove('hidden');
+  }
+});
+
+function installApp(){
+  const banner = document.getElementById('installBanner');
+  if(!deferredInstallPrompt){ banner.classList.add('hidden'); return; }
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.finally(() => {
+    deferredInstallPrompt = null;
+    banner.classList.add('hidden');
+  });
+}
+
+function dismissInstallBanner(){
+  document.getElementById('installBanner').classList.add('hidden');
+  try{ localStorage.setItem('install_banner_dismissed', '1'); }catch(e){}
+}
+
+/* ============================================================
+   INICIALIZAÇÃO
+   ============================================================ */
+(function init(){
+  const saved = loadSavedState();
+  if(hasContent(saved)){
+    // Já existe currículo salvo neste navegador — prepara tudo em segundo plano
+    // e mostra a tela de boas-vindas em vez de um formulário em branco.
+    applyLoadedState(saved);
+    const nome = saved.personal && saved.personal.name;
+    document.getElementById('welcomeSubtitle').textContent = nome
+      ? `Encontramos os dados de "${nome}" salvos neste navegador.`
+      : 'Encontramos um currículo salvo neste navegador.';
+    document.getElementById('welcomeScreen').classList.remove('hidden');
+  } else {
+    renderExperienceForm();
+    renderEducationForm();
+    renderCoursesForm();
+    renderPreview();
+    showStep(1);
+  }
+})();
+</script>
+</body>
+</html>
