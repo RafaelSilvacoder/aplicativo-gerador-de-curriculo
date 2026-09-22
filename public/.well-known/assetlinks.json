@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.vercel.aplicativo_gerador_de_curriculo.twa",
+        "sha256_cert_fingerprints": ["E2:C3:4F:50:C6:C7:68:8A:72:F5:0D:00:11:2A:39:84:92:31:A8:51:F4:5D:43:4A:55:6F:3B:52:7F:B2:43:76"]
+      }
+    }]
